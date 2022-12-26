@@ -1,0 +1,3 @@
+# Spore
+
+A description of this package.
