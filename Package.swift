@@ -14,6 +14,7 @@ let package = Package(
         .library(
             name: "Spore",
             targets: ["Spore"]),
+        .executable(name: "spore-cli", targets: ["spore-cli"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
