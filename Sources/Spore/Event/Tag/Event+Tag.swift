@@ -14,7 +14,6 @@ public extension Event.Tag {
         
         let type = try container.decode(TagType.self)
         self.type = type
-        
         switch type.rawValue {
         case TagType.event.rawValue:
             self.info = try EventInfo(from: container)
@@ -62,35 +61,39 @@ public extension Event.Tag {
     
     struct EventInfo: EventTagInfoRepresentable {
         let eventId: String
-        let recommendedRelayURL: String
+        let recommendedRelayURL: String?
         
         public init(from container: UnkeyedDecodingContainer) throws {
             var container = container
             self.eventId = try container.decode(String.self)
-            self.recommendedRelayURL = try container.decode(String.self)
+            self.recommendedRelayURL = try container.decodeIfPresent(String.self)
         }
         
         public func encode(to encoder: Encoder) throws {
             var container = encoder.unkeyedContainer()
             try container.encode(eventId)
-            try container.encode(recommendedRelayURL)
+            if let recommendedRelayURL = recommendedRelayURL {
+                try container.encode(recommendedRelayURL)
+            }
         }
     }
     
     struct PublicKeyInfo: EventTagInfoRepresentable {
         let publicKeyHexString: String
-        let recommendedRelayURL: String
+        let recommendedRelayURL: String?
         
         public init(from container: UnkeyedDecodingContainer) throws {
             var container = container
             self.publicKeyHexString = try container.decode(String.self)
-            self.recommendedRelayURL = try container.decode(String.self)
+            self.recommendedRelayURL = try container.decodeIfPresent(String.self)
         }
         
         public func encode(to encoder: Encoder) throws {
             var container = encoder.unkeyedContainer()
             try container.encode(publicKeyHexString)
-            try container.encode(recommendedRelayURL)
+            if let recommendedRelayURL = recommendedRelayURL {
+                try container.encode(recommendedRelayURL)
+            }
         }
     }
     

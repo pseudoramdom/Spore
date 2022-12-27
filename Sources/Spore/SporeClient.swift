@@ -1,14 +1,22 @@
 import Foundation
 
-public typealias EventsSet = Set<Event.SignedModel>
-public typealias EventReceiveHandler = (Result<(SubscriptionId?, Event.SignedModel?), Error>) -> Void
+public struct SubscriptionResult {
+    let subscriptionId: String
+    let events: [Event.SignedModel]
+}
+
+public typealias SubscriptionResultHandler = (Result<SubscriptionResult, Error>) -> Void
+
+private typealias EventsSet = Set<Event.SignedModel>
 
 public final class SporeClient {
     public let keys: Keys
-    public var subscriptionsAndEvents: [SubscriptionId: EventsSet] = [:]
-    public var eventReceiveHandler: EventReceiveHandler?
+    private var subscriptionsAndEvents: [SubscriptionId: EventsSet] = [:]
+    public var subscriptionHandlers: [SubscriptionId: SubscriptionResultHandler] = [:]
     
-    private var eventsSendHistory = Set<Event.SignedModel>()
+//    public var eventReceiveHandler: EventReceiveHandler?
+    
+    private var eventsSendHistory = EventsSet()
     
     private lazy var relayPool = {
         let pool = RelayPool()
@@ -16,12 +24,12 @@ public final class SporeClient {
         return pool
     }()
     
+    /// Initializes a client with new key pair
     public init() throws {
         self.keys = try Keys()
-        let pool = RelayPool()
-        pool.delegate = self
     }
     
+    /// Initializes a client with an existing key pair
     public init(keys: Keys) {
         self.keys = keys
     }
@@ -33,6 +41,14 @@ public final class SporeClient {
     
     public func removeRelay(url: URL) throws {
         try relayPool.removeRelay(url: url)
+    }    
+    
+    public func connect() {
+        relayPool.connect()
+    }
+    
+    public func disconnect() {
+        relayPool.disconnect()
     }
     
     public func send(_ event: Event.SignedModel) {
@@ -46,17 +62,15 @@ public final class SporeClient {
         relayPool.send(clientMessage: eventMessage)
     }
     
-    public func connect() {
-        relayPool.connect()
-    }
-    
-    public func disconnect() {
-        relayPool.disconnect()
-    }
-    
     public func subscribe(_ subscription: Subscription) {
         let subscribeMessage = Message.Client.SubscribeMessage(subscription: subscription)
         relayPool.send(clientMessage: subscribeMessage)
+    }
+    
+    public func subscribe(_ subscription: Subscription,
+                          waitAndCompletionHandler completionHandler: @escaping SubscriptionResultHandler) {
+        subscribe(subscription)
+        subscriptionHandlers[subscription.id] = completionHandler
     }
     
     public func unsubscribe(_ subscriptionId: SubscriptionId) {
@@ -71,7 +85,6 @@ extension SporeClient: RelayPoolMessagingDelegate {
         var events = subscriptionsAndEvents[subscriptionID] ?? []
         if !events.contains(event) {
             events.insert(event)
-            eventReceiveHandler?(.success((subscriptionID, event)))
         }
         subscriptionsAndEvents[subscriptionID] = events
     }
@@ -91,7 +104,15 @@ extension SporeClient: RelayPoolMessagingDelegate {
     }
     
     public func relayPool(_ relayPool: RelayPool, didReceiveOtherMessage message: Message.Relay) {
-        
+        switch message.type {
+        case .endOfStoredEvents:
+            guard let eose = message.message as? Message.Relay.EndOfStoredEventsMessage else {
+                return
+            }
+            print("End of store events for \(eose.subscriptionId)")
+        default:
+            break
+        }
     }
     
     public func relayPool(_ relayPool: RelayPool, didReceiveError error: Error) {

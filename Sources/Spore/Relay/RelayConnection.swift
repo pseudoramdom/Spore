@@ -148,6 +148,12 @@ extension RelayConnection {
     }
     private func handle(messageData: Data) {
         guard let relayMessage = try? JSONDecoder().decode(Message.Relay.self, from: messageData) else {
+            if let stringMessage = String(data: messageData, encoding: .utf8) {
+                print("ERROR: Failed to decode to known message type.")
+                print("\(stringMessage)")
+            } else {
+                print("ERROR: Relay Message Decode failed")
+            }
             print("ERROR: Relay Message Decode failed")
             return
         }
