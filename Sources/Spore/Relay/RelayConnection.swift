@@ -4,14 +4,8 @@ import Foundation
 public protocol RelayConnectable {
     var url: URL { get }
     
-    /// Describes if the relay socket connection is open
-    var isOpen: Bool { get }
-    
-    /// Set a delegate to receive updates on connection events
-    var delegate: RelayConnectionDelegate? { get set }
-    
-    /// Attempts to connect to the socket URL
-    func connect()
+    /// Attempts to reconnect to the socket URL
+    func reconnect() async throws
     
     /// Disconnects from the socket URL
     func disconnect()
@@ -20,132 +14,104 @@ public protocol RelayConnectable {
     func ping()
     
     /// Send message to relay
-    func send(clientMessage: ClientMessageRepresentable)
+    func send(clientMessage: ClientMessageRepresentable) async throws
 }
 
-/// Receive delegate calls on any updates from a particular relay connection
-public protocol RelayConnectionDelegate: AnyObject {
-    /// Indicates the relay connection was successful
-    func relayConnectionDidConnect(_ connection: RelayConnection)
-    
-    /// Indicates the relay connection is dead despite attempts to reconnect
-    func relayConnectionDidDisconnect(_ connection: RelayConnection)
-    
-    /// Received a message from the relay
-    func relayConnection(_ connection: RelayConnection, didReceiveMessage relayMessage: Message.Relay)
-    
-    func relayConnection(_ connection: RelayConnection, didReceiveError error: Error)
+enum RelayConnectionError: Error {
+    case failedToDecodeMessage
 }
 
-public final class RelayConnection: NSObject, RelayConnectable {
+public final class RelayConnection: AsyncSequence, RelayConnectable {
+    
+    public typealias Element = Message.Relay
+    public typealias AsyncIterator = AsyncThrowingStream<Message.Relay, Error>.Iterator
     
     public let url: URL
-
     public private(set) var isOpen: Bool = false
     
-    public weak var delegate: RelayConnectionDelegate?
+    private var session: URLSession
+    private var socket: URLSessionWebSocketTask
     
-    private let sessionConfiguration: URLSessionConfiguration!
-    private var session: URLSession!
-    private var socket: URLSessionWebSocketTask!
+    private lazy var jsonDecoder = JSONDecoder()
     
-    private let maxReconnectCount = 5
+    private var messageStream: AsyncThrowingStream<Element, Error>?
+    private var continuation: AsyncThrowingStream<Element, Error>.Continuation?
     
-    private let threadSafeCountQueue = DispatchQueue(label: "Spore.RelayConnection.count.queue", attributes: [.concurrent])
+    private var pingTimer: Timer?
     
-    private var reconnectAttempts: Int {
-        get {
-            return threadSafeCountQueue.sync {
-                _underlyingReconnectAttemptsCount
-            }
-        }
-        
-        set {
-            threadSafeCountQueue.async(flags: .barrier) { [unowned self] in
-                self._underlyingReconnectAttemptsCount = newValue
-            }
-        }
-    }
+    private let reconnectAttemptCounter = Counter(limit: 5)
     
-    private var _underlyingReconnectAttemptsCount = 0
-    
-    init(url: URL, sessionConfiguration: URLSessionConfiguration = .default) {
+    init(url: URL, session: URLSession = .shared) {
         self.url = url
-        self.sessionConfiguration = sessionConfiguration
+        self.session = session
+        
+        socket = session.webSocketTask(with: url)
+        messageStream = AsyncThrowingStream { continuation in
+            self.continuation = continuation
+            self.continuation?.onTermination = { @Sendable [socket] _ in
+                socket.cancel(with: .goingAway, reason: nil)
+                self.pingTimer?.invalidate()
+            }
+        }
     }
     
-    public func connect() {
-        session = URLSession(configuration: sessionConfiguration, delegate: self, delegateQueue: nil)
-        socket = session.webSocketTask(with: url)
-        listen()
+    public func makeAsyncIterator() -> AsyncThrowingStream<Message.Relay, Error>.Iterator {
+        guard let stream = messageStream else {
+            fatalError("Stream was not initialized")
+        }
         socket.resume()
+        listenForMessages()
+        return stream.makeAsyncIterator()
+    }
+    
+    public func reconnect() async throws {
+        _ = try await reconnectAttemptCounter.increment()
+        socket = session.webSocketTask(with: url)
     }
     
     public func disconnect() {
         socket.cancel(with: .goingAway, reason: nil)
+        pingTimer?.invalidate()
     }
     
-    public func send(clientMessage: ClientMessageRepresentable) {
-        do {
-            let encodedMessage = try clientMessage.encodedString()
-            
-            print("Constructed message:- \(encodedMessage)")
-            
-            socket.send(.string(encodedMessage)) { error in
-                if let error = error {
-                    print("ERROR: Websocket send error - \(String(describing: error))")
-                    self.delegate?.relayConnection(self, didReceiveError: error)
-                }
-            }
-        } catch {
-            delegate?.relayConnection(self, didReceiveError: error)
-        }
+    public func send(clientMessage: ClientMessageRepresentable) async throws {
+        let encodedMessage = try clientMessage.encodedString()
+        print("Constructed message:- \(encodedMessage)")
+        try await socket.send(.string(encodedMessage))
     }
     
     public func ping() {
-        socket.sendPing { error in
-            if let error = error {
-                print("Failed to ping with error: \(error.localizedDescription)")
-                self.delegate?.relayConnection(self, didReceiveError: error)
-                self.reconnectIfPossible()
-            }
+        pingTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { timer in
+            self.pingSocket()
         }
     }
 }
 
 extension RelayConnection {
     
-    private func listen() {
+    private func listenForMessages() {
         socket.receive { [weak self] result in
             guard let self = self else { return }
             
             switch result {
             case .failure(let error):
                 print("ERROR: Received websocket error - \(String(describing: error))")
-                self.delegate?.relayConnection(self, didReceiveError: error)
-                self.reconnectIfPossible()
+                self.continuation?.finish(throwing: error)
             case .success(let responseMessage):
                 switch responseMessage {
                 case .string(let text):
                     let relayMessageData = Data(text.utf8)
                     self.handle(messageData: relayMessageData)
                 case .data(let messageData):
-                    self.handle(messageData:messageData)
+                    self.handle(messageData: messageData)
                 @unknown default:
                     print("Unknown message type")
+                    self.continuation?.finish(throwing: RelayConnectionError.failedToDecodeMessage)
                 }
             }
-            self.listen()
         }
     }
     
-    private func reconnectIfPossible() {
-        guard self.reconnectAttempts < self.maxReconnectCount else {
-            return
-        }
-        self.connect()
-        self.reconnectAttempts += 1
-    }
     private func handle(messageData: Data) {
         guard let relayMessage = try? JSONDecoder().decode(Message.Relay.self, from: messageData) else {
             if let stringMessage = String(data: messageData, encoding: .utf8) {
@@ -154,22 +120,18 @@ extension RelayConnection {
             } else {
                 print("ERROR: Relay Message Decode failed")
             }
-            print("ERROR: Relay Message Decode failed")
+            continuation?.finish(throwing: RelayConnectionError.failedToDecodeMessage)
             return
         }
         print("RelayConnection.handleMessageData")
-        delegate?.relayConnection(self, didReceiveMessage: relayMessage)
-    }
-}
-
-extension RelayConnection: URLSessionWebSocketDelegate {
-    public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
-        isOpen = true
-        delegate?.relayConnectionDidConnect(self)
+        continuation?.yield(relayMessage)
     }
     
-    public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
-        isOpen = false
-        delegate?.relayConnectionDidDisconnect(self)
+    private func pingSocket() {
+        socket.sendPing { error in
+            if let error = error {
+                print("Failed to ping with error: \(String(describing: error))")
+            }
+        }
     }
 }

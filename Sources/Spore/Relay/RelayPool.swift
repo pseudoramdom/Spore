@@ -29,8 +29,6 @@ public final class RelayPool: RelayPoolManaging {
     
     private let lockQueue = DispatchQueue(label: "NostrSwift.relayPool.lock.queue")
     
-    private var pingTimer: Timer?
-    
     public func addRelay(_ relay: RelayConnectable) throws {
         var relay = relay
         
@@ -61,24 +59,10 @@ public final class RelayPool: RelayPoolManaging {
         }
     }
     
-    public func connect() {
-        for (_, relay) in relays {
-            relay.connect()
-        }
-        
-        // Schedule timer to ping relays to keep them alive
-        pingTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { timer in
-            self.ping()
-        }
-    }
-    
     public func disconnect() {
         for (_, relay) in relays {
             relay.disconnect()
         }
-        
-        pingTimer?.invalidate()
-        pingTimer = nil
     }
     
     public func send(clientMessage: ClientMessageRepresentable) {
