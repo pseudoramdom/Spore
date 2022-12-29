@@ -5,14 +5,14 @@ public struct SubscriptionResult {
     let events: [Event.SignedModel]
 }
 
-public typealias SubscriptionResultHandler = (Result<SubscriptionResult, Error>) -> Void
-
 private typealias EventsSet = Set<Event.SignedModel>
+private typealias SubscriptionEventsContinuation = CheckedContinuation<SubscriptionResult, Error>
 
 public final class SporeClient {
     public let keys: Keys
+    
     private var subscriptionsAndEvents: [SubscriptionId: EventsSet] = [:]
-    public var subscriptionHandlers: [SubscriptionId: SubscriptionResultHandler] = [:]
+    private var subscriptionsAndContinuations: [SubscriptionId: SubscriptionEventsContinuation] = [:]
     
 //    public var eventReceiveHandler: EventReceiveHandler?
     
@@ -20,7 +20,7 @@ public final class SporeClient {
     
     private lazy var relayPool = {
         let pool = RelayPool()
-        pool.delegate = self
+//        pool.delegate = self
         return pool
     }()
     
@@ -36,22 +36,18 @@ public final class SporeClient {
     
     public func addRelay(url: URL) throws {
         let relayConnection = RelayConnection(url: url)
-        try relayPool.addRelay(relayConnection)
+        Task {
+            try await relayPool.addRelay(relayConnection)
+        }
     }
     
     public func removeRelay(url: URL) throws {
-        try relayPool.removeRelay(url: url)
-    }    
-    
-    public func connect() {
-        relayPool.connect()
+        Task {
+            try await relayPool.removeRelay(url: url)
+        }   
     }
     
-    public func disconnect() {
-        relayPool.disconnect()
-    }
-    
-    public func send(_ event: Event.SignedModel) {
+    public func send(_ event: Event.SignedModel) async {
         guard let isValid = try? event.isValid(), isValid else {
             print("Event is not valid. Check signature")
             return
@@ -59,27 +55,37 @@ public final class SporeClient {
         
         eventsSendHistory.insert(event)
         let eventMessage = Message.Client.EventMessage(event: event)
-        relayPool.send(clientMessage: eventMessage)
+        await relayPool.send(clientMessage: eventMessage)
     }
     
-    public func subscribe(_ subscription: Subscription) {
+    public func subscribe(_ subscription: Subscription) async {
         let subscribeMessage = Message.Client.SubscribeMessage(subscription: subscription)
-        relayPool.send(clientMessage: subscribeMessage)
+        await relayPool.send(clientMessage: subscribeMessage)
     }
     
-    public func subscribe(_ subscription: Subscription,
-                          waitAndCompletionHandler completionHandler: @escaping SubscriptionResultHandler) {
-        subscribe(subscription)
-        subscriptionHandlers[subscription.id] = completionHandler
+    public func subscribeAndWaitForEvents(_ subscription: Subscription) async throws -> SubscriptionResult {
+        let subscribeMessage = Message.Client.SubscribeMessage(subscription: subscription)
+        Task {
+            await relayPool.send(clientMessage: subscribeMessage)
+        }
+        
+        return try await withCheckedThrowingContinuation({ (continuation: SubscriptionEventsContinuation) in
+            var subscriptionEventContinuation: SubscriptionEventsContinuation = continuation
+            self.subscriptionsAndContinuations[subscription.id] = subscriptionEventContinuation
+        })
     }
     
-    public func unsubscribe(_ subscriptionId: SubscriptionId) {
+    public func unsubscribe(_ subscriptionId: SubscriptionId) async {
         let unsubscribeMessage = Message.Client.UnsubscribeMessage(subscriptionId: subscriptionId)
-        relayPool.send(clientMessage: unsubscribeMessage)
+        await relayPool.send(clientMessage: unsubscribeMessage)
     }
 }
 
 extension SporeClient: RelayPoolMessagingDelegate {
+    public func relayPool(_ relayPool: RelayPool, didReceiveEOSEMessage message: Message.Relay.EndOfStoredEventsMessage) {
+        
+    }
+    
     public func relayPool(_ relayPool: RelayPool, didReceiveEvent event: Event.SignedModel, for subscriptionID: SubscriptionId) {
         print("SporeClient.didReceiveEvent")
         var events = subscriptionsAndEvents[subscriptionID] ?? []
@@ -97,9 +103,9 @@ extension SporeClient: RelayPoolMessagingDelegate {
         }.first
         
         if message.status {
-            eventReceiveHandler?(.success((nil, nil)))
+//            eventReceiveHandler?(.success((nil, nil)))
         } else {
-            eventReceiveHandler?(.failure(RelayPoolError.relayError(message: message.message)))
+//            eventReceiveHandler?(.failure(RelayPoolError.relayError(message: message.message)))
         }
     }
     
@@ -110,12 +116,18 @@ extension SporeClient: RelayPoolMessagingDelegate {
                 return
             }
             print("End of store events for \(eose.subscriptionId)")
+            if let continuation = subscriptionsAndContinuations[eose.subscriptionId] {
+                let events = subscriptionsAndEvents[eose.subscriptionId] ?? []
+                let result = SubscriptionResult(subscriptionId: eose.subscriptionId,
+                                                events: Array(events))
+                continuation.resume(returning: result)
+            }
         default:
             break
         }
     }
     
     public func relayPool(_ relayPool: RelayPool, didReceiveError error: Error) {
-        eventReceiveHandler?(.failure(error))
+//        eventReceiveHandler?(.failure(error))
     }
 }

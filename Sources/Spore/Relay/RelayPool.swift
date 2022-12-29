@@ -1,18 +1,5 @@
 import Foundation
 
-public protocol RelayPoolManaging {
-    var relays: [String: RelayConnectable] { get }
-    
-    func addRelay(_ relay: RelayConnectable) throws
-    func removeRelay(url: URL) throws
-    
-    func connect()
-    func disconnect()
-    
-    /// Send message to relays
-    func send(clientMessage: ClientMessageRepresentable)
-}
-
 public protocol RelayPoolMessagingDelegate: AnyObject {
     func relayPool(_ relayPool: RelayPool, didReceiveEvent event: Event.SignedModel, for subscriptionID: SubscriptionId)
     func relayPool(_ relayPool: RelayPool, didReceiveOkMessage message: Message.Relay.OkMessage)
@@ -21,28 +8,22 @@ public protocol RelayPoolMessagingDelegate: AnyObject {
     func relayPool(_ relayPool: RelayPool, didReceiveError error: Error)
 }
 
-public final class RelayPool: RelayPoolManaging {
+public typealias RelayURL = String
+
+public actor RelayPool {
     
-    public private(set) var relays: [String: RelayConnectable] = [:]
+    public private(set) var relays: [RelayURL: RelayConnection] = [:]
     
-    public weak var delegate: RelayPoolMessagingDelegate?
+    public private(set) weak var delegate: RelayPoolMessagingDelegate?
     
-    private let lockQueue = DispatchQueue(label: "NostrSwift.relayPool.lock.queue")
-    
-    public func addRelay(_ relay: RelayConnectable) throws {
-        var relay = relay
-        
+    public func addRelay(_ relay: RelayConnection) throws {
         let url = relay.url
         guard !containsRelay(url: url) else {
             print("Relay with url \(url.absoluteString) already exists")
             throw RelayPoolError.relayAlreadyExists
         }
         
-        relay.delegate = self
-        
-        return lockQueue.sync { [unowned self] in
-            self.relays[url.absoluteString] = relay
-        }
+        self.relays[url.absoluteString] = relay
     }
     
     public func removeRelay(url: URL) throws {
@@ -54,9 +35,7 @@ public final class RelayPool: RelayPoolManaging {
         let relay = self.relays[url.absoluteString]
         relay?.disconnect()
         
-        return lockQueue.sync { [unowned self] in
-            self.relays.removeValue(forKey: url.absoluteString)
-        }
+        self.relays.removeValue(forKey: url.absoluteString)
     }
     
     public func disconnect() {
@@ -65,24 +44,32 @@ public final class RelayPool: RelayPoolManaging {
         }
     }
     
-    public func send(clientMessage: ClientMessageRepresentable) {
+    public func send(clientMessage: ClientMessageRepresentable) async {
         guard !relays.isEmpty else {
-            delegate?.relayPool(self, didReceiveError: RelayPoolError.noRelaysAdded)
+            await delegate?.relayPool(self, didReceiveError: RelayPoolError.noRelaysAdded)
             return
         }
         for (_, relay) in relays {
-            guard relay.isOpen else {
-                print("Relay (\(relay.url) is not connected")
-                continue
+            do {
+                try await relay.send(clientMessage: clientMessage)
+            } catch {
+                print("Send error with relay: \(relay.url)")
             }
-            relay.send(clientMessage: clientMessage)
         }
     }
     
-    private func ping() {
+    public func receiveEvents() async {
         for (_, relay) in relays {
-            relay.ping()
+            Task.detached {
+                for try await message in relay {
+                    await self.handle(relayMessage: message)
+                }
+            }
         }
+    }
+    
+    public nonisolated func setDelegate(_ delegate: RelayPoolMessagingDelegate) {
+        self.delegate = delegate
     }
     
     deinit {
@@ -94,19 +81,9 @@ extension RelayPool {
     private func containsRelay(url: URL) -> Bool {
         return relays.keys.contains(url.absoluteString)
     }
-}
-
-extension RelayPool: RelayConnectionDelegate {
-    public func relayConnectionDidConnect(_ connection: RelayConnection) {
-        print("Relay-(\(connection.url) connected")
-    }
     
-    public func relayConnectionDidDisconnect(_ connection: RelayConnection) {
-        try? removeRelay(url: connection.url)
-    }
-    
-    public func relayConnection(_ connection: RelayConnection, didReceiveMessage relayMessage: Message.Relay) {
-        print("RelayPool.relayConnectionDidReceiveMessage")
+    private func handle(relayMessage: Message.Relay) {
+        print("RelayPool.handleRelayMessage")
         
         switch relayMessage.type {
         case .event:
@@ -114,15 +91,7 @@ extension RelayPool: RelayConnectionDelegate {
                 print("There was an error decoding the message. Mismatch between type and message")
                 return
             }
-            
-            // TODO: Reenable after fixing event validity check
-//            guard let isValid = try? eventMessage.event.isValid(), isValid else {
-//                print("Event is not valid. Bailing")
-//                return
-//            }
-            
             delegate?.relayPool(self, didReceiveEvent: eventMessage.event, for: eventMessage.subscriptionId)
-            
         case .notice:
             guard let noticeMessage = relayMessage.message as? Message.Relay.NoticeMessage else {
                 print("There was an error decoding the message. Mismatch between type and message")
@@ -147,8 +116,4 @@ extension RelayPool: RelayConnectionDelegate {
             print("Relay message received of unknown type")
         }
     }
-    
-    public func relayConnection(_ connection: RelayConnection, didReceiveError error: Error) {
-        print("Relay-(\(connection.url) : ERROR - \(error.localizedDescription)")
-    }    
 }

@@ -33,20 +33,19 @@ extension SporeSDK {
                 try client.addRelay(url: relayUrl)
             } catch {
                 print("Failed to add relay with URL - \(relayUrl)")
-            }
+            }          
         }
-        client.connect()
     }
 }
 
 extension SporeSDK {
-    public static func getFollowingContacts(for client: SporeClient = client) -> Event.SignedModel {
+    public static func getFollowingContacts(for client: SporeClient = client) async throws -> [Event.SignedModel] {
         let filter = Filter(authors:[client.keys.publicKey], kinds: [Event.Kind.contactList.rawValue])
         let subscriptionId = UUID().uuidString
         let subscription = Subscription(id: subscriptionId, filters: [filter])
         
-        client.subscribe(subscription)
-        
+        let result = try await client.subscribeAndWaitForEvents(subscription)
+        return result.events
     }
 }
 

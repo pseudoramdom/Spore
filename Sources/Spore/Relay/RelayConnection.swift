@@ -1,27 +1,29 @@
 import Foundation
 
-/// Outlines a typical relay that is used by a Relay Pool
-public protocol RelayConnectable {
-    var url: URL { get }
-    
-    /// Attempts to reconnect to the socket URL
-    func reconnect() async throws
-    
-    /// Disconnects from the socket URL
-    func disconnect()
-    
-    /// Pings the socket connection to keep it alive
-    func ping()
-    
-    /// Send message to relay
-    func send(clientMessage: ClientMessageRepresentable) async throws
-}
+//public typealias RelayConnectionEventStreamable = AsyncSequence & RelayConnectable
+//
+///// Outlines a typical relay that is used by a Relay Pool
+//public protocol RelayConnectable {
+//    var url: URL { get }
+//
+//    /// Attempts to reconnect to the socket URL
+//    func reconnect() async throws
+//
+//    /// Disconnects from the socket URL
+//    func disconnect()
+//
+//    /// Pings the socket connection to keep it alive
+//    func ping()
+//
+//    /// Send message to relay
+//    func send(clientMessage: ClientMessageRepresentable) async throws
+//}
 
 enum RelayConnectionError: Error {
     case failedToDecodeMessage
 }
 
-public final class RelayConnection: AsyncSequence, RelayConnectable {
+public final class RelayConnection: AsyncSequence {
     
     public typealias Element = Message.Relay
     public typealias AsyncIterator = AsyncThrowingStream<Message.Relay, Error>.Iterator

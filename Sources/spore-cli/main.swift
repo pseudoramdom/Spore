@@ -10,8 +10,10 @@ import ArgumentParser
 struct SporeCLI: ParsableCommand {
     static var configuration = CommandConfiguration(commandName:"spore-cli",
                                                     abstract: "CLI tool to test NostrSwift implementation",
-                                                    subcommands: [Event.self,
-                                                                  Subscribe.self])        
+                                                    subcommands: [
+//                                                        Event.self,
+                                                        Contacts.self,
+                                                        Subscribe.self])
 }
 
 SporeCLI.main()

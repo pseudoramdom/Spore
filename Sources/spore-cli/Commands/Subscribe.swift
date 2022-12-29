@@ -35,25 +35,25 @@ extension SporeCLI {
         }
         
         func subscribe(keys: Keys, filter: Filter) throws {
-            let subscription = Subscription(id: UUID().uuidString, filters: [filter])
-
-            let semaphore = DispatchSemaphore(value: 0)
-            SporeSDK.initializeClient(with: keys)
-            
-            sleep(2)
-            print("sending...")
-            
-            SporeSDK.client.eventReceiveHandler = { result in
-                switch result {
-                case .failure(let error):
-                    print("Received error from client - \(error.localizedDescription)")
-                case .success(let response):
-                    print("Received response - \(response)")
-                }
-//                semaphore.signal()
-            }
-            SporeSDK.client.subscribe(subscription)
-            semaphore.wait()
+//            let subscription = Subscription(id: UUID().uuidString, filters: [filter])
+//
+//            let semaphore = DispatchSemaphore(value: 0)
+//            SporeSDK.initializeClient(with: keys)
+//
+//            sleep(2)
+//            print("sending...")
+//
+//            SporeSDK.client.eventReceiveHandler = { result in
+//                switch result {
+//                case .failure(let error):
+//                    print("Received error from client - \(error.localizedDescription)")
+//                case .success(let response):
+//                    print("Received response - \(response)")
+//                }
+////                semaphore.signal()
+//            }
+//            SporeSDK.client.subscribe(subscription)
+//            semaphore.wait()
         }
     }
 }
