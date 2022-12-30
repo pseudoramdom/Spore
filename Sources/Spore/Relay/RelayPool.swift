@@ -14,11 +14,9 @@ public protocol RelayPoolManaging {
 }
 
 public protocol RelayPoolMessagingDelegate: AnyObject {
-    func relayPool(_ relayPool: RelayPool, didReceiveEvent event: Event.SignedModel, for subscriptionID: SubscriptionId)
-    func relayPool(_ relayPool: RelayPool, didReceiveOkMessage message: Message.Relay.OkMessage)
-    func relayPool(_ relayPool: RelayPool, didReceiveEOSEMessage message: Message.Relay.EndOfStoredEventsMessage)
-    func relayPool(_ relayPool: RelayPool, didReceiveOtherMessage message: Message.Relay)
-    func relayPool(_ relayPool: RelayPool, didReceiveError error: Error)
+    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveEvent event: Event.SignedModel, for subscriptionID: SubscriptionId)
+    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveOtherMessage message: Message.Relay)
+    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveError error: Error)
 }
 
 public final class RelayPool: RelayPoolManaging {
@@ -27,9 +25,7 @@ public final class RelayPool: RelayPoolManaging {
     
     public weak var delegate: RelayPoolMessagingDelegate?
     
-    private let lockQueue = DispatchQueue(label: "NostrSwift.relayPool.lock.queue")
-    
-    private var pingTimer: Timer?
+    private let lockQueue = DispatchQueue(label: "Spore.relayPool.lock.queue")
     
     public func addRelay(_ relay: RelayConnectable) throws {
         var relay = relay
@@ -65,25 +61,17 @@ public final class RelayPool: RelayPoolManaging {
         for (_, relay) in relays {
             relay.connect()
         }
-        
-        // Schedule timer to ping relays to keep them alive
-        pingTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { timer in
-            self.ping()
-        }
     }
     
     public func disconnect() {
         for (_, relay) in relays {
             relay.disconnect()
         }
-        
-        pingTimer?.invalidate()
-        pingTimer = nil
     }
     
     public func send(clientMessage: ClientMessageRepresentable) {
         guard !relays.isEmpty else {
-            delegate?.relayPool(self, didReceiveError: RelayPoolError.noRelaysAdded)
+            delegate?.relayPool(self, relayURL: nil, didReceiveError: RelayPoolError.noRelaysAdded)
             return
         }
         for (_, relay) in relays {
@@ -92,12 +80,6 @@ public final class RelayPool: RelayPoolManaging {
                 continue
             }
             relay.send(clientMessage: clientMessage)
-        }
-    }
-    
-    private func ping() {
-        for (_, relay) in relays {
-            relay.ping()
         }
     }
     
@@ -137,28 +119,10 @@ extension RelayPool: RelayConnectionDelegate {
 //                return
 //            }
             
-            delegate?.relayPool(self, didReceiveEvent: eventMessage.event, for: eventMessage.subscriptionId)
+            delegate?.relayPool(self, relayURL: nil, didReceiveEvent: eventMessage.event, for: eventMessage.subscriptionId)
             
-        case .notice:
-            guard let noticeMessage = relayMessage.message as? Message.Relay.NoticeMessage else {
-                print("There was an error decoding the message. Mismatch between type and message")
-                return
-            }
-            print(noticeMessage.message)
-            delegate?.relayPool(self, didReceiveOtherMessage: relayMessage)
-        case .endOfStoredEvents:
-            guard let eoseMessage = relayMessage.message as? Message.Relay.EndOfStoredEventsMessage else {
-                print("There was an error decoding the message. Mismatch between type and message")
-                return
-            }
-            delegate?.relayPool(self, didReceiveEOSEMessage: eoseMessage)
-        case .ok:
-            guard let okMessage = relayMessage.message as? Message.Relay.OkMessage else {
-                print("There was an error decoding the message. Mismatch between type and message")
-                return
-            }
-            print(okMessage.message)
-            delegate?.relayPool(self, didReceiveOkMessage: okMessage)
+        case .notice, .endOfStoredEvents, .ok:
+            delegate?.relayPool(self, relayURL: connection.url, didReceiveOtherMessage: relayMessage)
         case .unknown:
             print("Relay message received of unknown type")
         }
@@ -166,5 +130,6 @@ extension RelayPool: RelayConnectionDelegate {
     
     public func relayConnection(_ connection: RelayConnection, didReceiveError error: Error) {
         print("Relay-(\(connection.url) : ERROR - \(error.localizedDescription)")
+        delegate?.relayPool(self, relayURL: connection.url, didReceiveError: error)
     }    
 }

@@ -49,25 +49,7 @@ public final class RelayConnection: NSObject, RelayConnectable {
     private var session: URLSession!
     private var socket: URLSessionWebSocketTask!
     
-    private let maxReconnectCount = 5
-    
-    private let threadSafeCountQueue = DispatchQueue(label: "Spore.RelayConnection.count.queue", attributes: [.concurrent])
-    
-    private var reconnectAttempts: Int {
-        get {
-            return threadSafeCountQueue.sync {
-                _underlyingReconnectAttemptsCount
-            }
-        }
-        
-        set {
-            threadSafeCountQueue.async(flags: .barrier) { [unowned self] in
-                self._underlyingReconnectAttemptsCount = newValue
-            }
-        }
-    }
-    
-    private var _underlyingReconnectAttemptsCount = 0
+    private var pingTimer: Timer?
     
     init(url: URL, sessionConfiguration: URLSessionConfiguration = .default) {
         self.url = url
@@ -83,6 +65,7 @@ public final class RelayConnection: NSObject, RelayConnectable {
     
     public func disconnect() {
         socket.cancel(with: .goingAway, reason: nil)
+        pingTimer?.invalidate()
     }
     
     public func send(clientMessage: ClientMessageRepresentable) {
@@ -103,12 +86,8 @@ public final class RelayConnection: NSObject, RelayConnectable {
     }
     
     public func ping() {
-        socket.sendPing { error in
-            if let error = error {
-                print("Failed to ping with error: \(error.localizedDescription)")
-                self.delegate?.relayConnection(self, didReceiveError: error)
-                self.reconnectIfPossible()
-            }
+        pingTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { timer in
+            self.pingSocket()
         }
     }
 }
@@ -123,7 +102,6 @@ extension RelayConnection {
             case .failure(let error):
                 print("ERROR: Received websocket error - \(String(describing: error))")
                 self.delegate?.relayConnection(self, didReceiveError: error)
-                self.reconnectIfPossible()
             case .success(let responseMessage):
                 switch responseMessage {
                 case .string(let text):
@@ -139,13 +117,6 @@ extension RelayConnection {
         }
     }
     
-    private func reconnectIfPossible() {
-        guard self.reconnectAttempts < self.maxReconnectCount else {
-            return
-        }
-        self.connect()
-        self.reconnectAttempts += 1
-    }
     private func handle(messageData: Data) {
         guard let relayMessage = try? JSONDecoder().decode(Message.Relay.self, from: messageData) else {
             if let stringMessage = String(data: messageData, encoding: .utf8) {
@@ -160,16 +131,26 @@ extension RelayConnection {
         print("RelayConnection.handleMessageData")
         delegate?.relayConnection(self, didReceiveMessage: relayMessage)
     }
+    
+    private func pingSocket() {
+        socket.sendPing { error in
+            if let error = error {
+                print("Failed to ping with error: \(String(describing: error))")
+            }
+        }
+    }
 }
 
 extension RelayConnection: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
         isOpen = true
         delegate?.relayConnectionDidConnect(self)
+        ping()
     }
     
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         isOpen = false
         delegate?.relayConnectionDidDisconnect(self)
+        pingTimer?.invalidate()
     }
 }

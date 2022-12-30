@@ -34,16 +34,6 @@ extension SporeCLI.Event {
             client.connect()
             sleep(2)
             print("sending...")
-            client.eventReceiveHandler = { result in
-                switch result {
-                case .failure(let error):
-                    print(error.localizedDescription)
-                case .success(let response):
-                    print("Received response - \(response)")
-                }
-//                semaphore.signal()
-//                client.disconnect()
-            }
             client.send(event)
             semaphore.wait()
         }
@@ -76,16 +66,6 @@ extension SporeCLI.Event {
             client.connect()
             sleep(2)
             print("sending...")
-            client.eventReceiveHandler = { result in
-                switch result {
-                case .failure(let error):
-                    print(error.localizedDescription)
-                case .success(let response):
-                    print("Received response - \(response)")
-                }
-//                semaphore.signal()
-//                client.disconnect()
-            }
             client.send(event)
             semaphore.wait()
         }

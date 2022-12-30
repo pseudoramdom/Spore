@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Metadata {
+public struct Metadata: Codable {
     let name: String?
     let displayName: String?
     let about: String?
@@ -25,5 +25,11 @@ public struct Metadata {
         self.about = about
         self.picture = picture
         self.website = website
+    }
+    
+    public func encodedString() throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        return String(decoding: try encoder.encode(self), as: UTF8.self)
     }
 }

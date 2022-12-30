@@ -12,9 +12,7 @@ private typealias EventsSet = Set<Event.SignedModel>
 public final class SporeClient {
     public let keys: Keys
     private var subscriptionsAndEvents: [SubscriptionId: EventsSet] = [:]
-    public var subscriptionHandlers: [SubscriptionId: SubscriptionResultHandler] = [:]
-    
-//    public var eventReceiveHandler: EventReceiveHandler?
+    public var eventReceiveHandler: ((SubscriptionId, Event.SignedModel) -> Void)?
     
     private var eventsSendHistory = EventsSet()
     
@@ -67,12 +65,6 @@ public final class SporeClient {
         relayPool.send(clientMessage: subscribeMessage)
     }
     
-    public func subscribe(_ subscription: Subscription,
-                          waitAndCompletionHandler completionHandler: @escaping SubscriptionResultHandler) {
-        subscribe(subscription)
-        subscriptionHandlers[subscription.id] = completionHandler
-    }
-    
     public func unsubscribe(_ subscriptionId: SubscriptionId) {
         let unsubscribeMessage = Message.Client.UnsubscribeMessage(subscriptionId: subscriptionId)
         relayPool.send(clientMessage: unsubscribeMessage)
@@ -80,42 +72,30 @@ public final class SporeClient {
 }
 
 extension SporeClient: RelayPoolMessagingDelegate {
-    public func relayPool(_ relayPool: RelayPool, didReceiveEvent event: Event.SignedModel, for subscriptionID: SubscriptionId) {
+    public func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveEvent event: Event.SignedModel, for subscriptionID: SubscriptionId) {
         print("SporeClient.didReceiveEvent")
         var events = subscriptionsAndEvents[subscriptionID] ?? []
         if !events.contains(event) {
             events.insert(event)
         }
         subscriptionsAndEvents[subscriptionID] = events
+        eventReceiveHandler?(subscriptionID, event)
     }
     
-    public func relayPool(_ relayPool: RelayPool, didReceiveOkMessage message: Message.Relay.OkMessage) {
-        print("SporeClient.didReceiveOkMessage")
-        let eventId = message.eventId
-        let sentEventFromHistory = eventsSendHistory.filter { event in
-            return event.id == eventId
-        }.first
-        
-        if message.status {
-            eventReceiveHandler?(.success((nil, nil)))
-        } else {
-            eventReceiveHandler?(.failure(RelayPoolError.relayError(message: message.message)))
-        }
-    }
-    
-    public func relayPool(_ relayPool: RelayPool, didReceiveOtherMessage message: Message.Relay) {
+    public func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveOtherMessage message: Message.Relay) {
         switch message.type {
         case .endOfStoredEvents:
             guard let eose = message.message as? Message.Relay.EndOfStoredEventsMessage else {
                 return
             }
-            print("End of store events for \(eose.subscriptionId)")
+            print("SporeClient - End of store events for \(eose.subscriptionId)")
+            subscriptionsAndEvents.removeValue(forKey: eose.subscriptionId)
         default:
             break
         }
     }
     
-    public func relayPool(_ relayPool: RelayPool, didReceiveError error: Error) {
-        eventReceiveHandler?(.failure(error))
+    public func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveError error: Error) {
+        print("SporeClient.Error:- \(relayURL?.absoluteString ?? "") - \(error.localizedDescription)")
     }
 }

@@ -43,14 +43,8 @@ extension SporeCLI {
             sleep(2)
             print("sending...")
             
-            SporeSDK.client.eventReceiveHandler = { result in
-                switch result {
-                case .failure(let error):
-                    print("Received error from client - \(error.localizedDescription)")
-                case .success(let response):
-                    print("Received response - \(response)")
-                }
-//                semaphore.signal()
+            SporeSDK.client.eventReceiveHandler = { (subscriptionId, event) in
+                print("RECEIVED - \(subscriptionId)\n\(event)")
             }
             SporeSDK.client.subscribe(subscription)
             semaphore.wait()
