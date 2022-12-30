@@ -40,13 +40,15 @@ extension SporeSDK {
 }
 
 extension SporeSDK {
-    public static func getCurrentUserFollowingContacts(for client: SporeClient = client) {
-        Self.getFollowingContacts(publicKey: client.keys.publicKey)
+    public static func getCurrentUserContacts(subscriptionId: String = UUID().uuidString, for client: SporeClient = client) {
+        Self.getFollowingContacts(publicKey: client.keys.publicKey, subscriptionId: subscriptionId)
     }
     
-    public static func getFollowingContacts(publicKey: String, for client: SporeClient = client) {
+    public static func getFollowingContacts(publicKey: String,
+                                            subscriptionId: String = UUID().uuidString,
+                                            for client: SporeClient = client) {
         let filter = Filter(authors:[publicKey], kinds: [Event.Kind.contactList.rawValue])
-        let subscriptionId = UUID().uuidString
+        let subscriptionId = subscriptionId
         let subscription = Subscription(id: subscriptionId, filters: [filter])
         
         client.subscribe(subscription)
@@ -54,15 +56,17 @@ extension SporeSDK {
 }
 
 extension SporeSDK {
-    public static func update(metadata: Metadata, for client: SporeClient = client) throws {
+    public static func updateProfile(metadata: Metadata, for client: SporeClient = client) throws {
         let jsonEncodedString = try metadata.encodedString()
         let event = try Event.SignedModel(keys: client.keys, kind: .setMetadata, content: jsonEncodedString)
         client.send(event)
     }
     
-    public static func getProfile(publicKey: String, for client: SporeClient = client) throws {
+    public static func getProfile(publicKey: String,
+                                  subscriptionId: String = UUID().uuidString,
+                                  for client: SporeClient = client) throws {
         let filter = Filter(authors:[publicKey], kinds: [Event.Kind.setMetadata.rawValue])
-        let subscriptionId = UUID().uuidString
+        let subscriptionId = subscriptionId
         let subscription = Subscription(id: subscriptionId, filters: [filter])
         
         client.subscribe(subscription)

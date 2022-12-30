@@ -6,15 +6,15 @@ extension SporeCLI {
     struct Profile: ParsableCommand {
         static var configuration = CommandConfiguration(commandName: "profile",
                                                         abstract: "subcommand related to profile",
-                                                        subcommands: [Following.self,
+                                                        subcommands: [Contacts.self,
                                                                       UpdateProfile.self,
                                                                       GetProfile.self])
     }
 }
 
 extension SporeCLI.Profile {
-    struct Following: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "get-following",
+    struct Contacts: ParsableCommand {
+        static var configuration = CommandConfiguration(commandName: "contacts",
                                                         abstract: "subcommand to fetch following authors")
         
         
@@ -29,10 +29,17 @@ extension SporeCLI.Profile {
             sleep(2)
             print("sending...")
             
-            SporeSDK.client.eventReceiveHandler = { (subscriptionId, event) in
+            let subId = UUID().uuidString
+            print("SubscriptionID - \(subId)")
+            
+            SporeSDK.client.addEventReceiveHandler(for: subId) { subscriptionId, event in
+                guard subscriptionId == subId else {
+                    print("Received unrelated event. Ignoring...")
+                    return
+                }
                 print("RECEIVED - \(subscriptionId)\n\(event)")
             }
-            SporeSDK.getFollowingContacts(publicKey: publicKey)
+            SporeSDK.getFollowingContacts(publicKey: publicKey, subscriptionId: subId)
             semaphore.wait()
         }
     }
@@ -51,7 +58,7 @@ extension SporeCLI.Profile {
             print("sending...")
             
             let metadata = Metadata(about: "wassa wasaaa")
-            try? SporeSDK.update(metadata: metadata)
+            try? SporeSDK.updateProfile(metadata: metadata)
             semaphore.wait()
         }
     }
@@ -71,10 +78,16 @@ extension SporeCLI.Profile {
             sleep(2)
             print("sending...")
             
-            SporeSDK.client.eventReceiveHandler = { (subscriptionId, event) in
+            let subId = UUID().uuidString
+            print("SubscriptionID - \(subId)")
+            SporeSDK.client.addEventReceiveHandler(for: subId) { subscriptionId, event in
+                guard subscriptionId == subId else {
+                    print("Received unrelated event. Ignoring...")
+                    return
+                }
                 print("RECEIVED - \(subscriptionId)\n\(event)")
             }
-            try? SporeSDK.getProfile(publicKey: publicKey)
+            try? SporeSDK.getProfile(publicKey: publicKey, subscriptionId: subId)
             semaphore.wait()
         }
     }

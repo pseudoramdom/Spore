@@ -14,7 +14,7 @@ public protocol RelayPoolManaging {
 }
 
 public protocol RelayPoolMessagingDelegate: AnyObject {
-    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveEvent event: Event.SignedModel, for subscriptionID: SubscriptionId)
+    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveEvent event: Event.SignedModel, for subscriptionId: SubscriptionId)
     func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveOtherMessage message: Message.Relay)
     func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveError error: Error)
 }

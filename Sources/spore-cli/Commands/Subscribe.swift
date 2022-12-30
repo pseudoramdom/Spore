@@ -43,9 +43,14 @@ extension SporeCLI {
             sleep(2)
             print("sending...")
             
-            SporeSDK.client.eventReceiveHandler = { (subscriptionId, event) in
+            SporeSDK.client.addEventReceiveHandler(for: subscription.id) { subscriptionId, event in
+                guard subscriptionId == subscription.id else {
+                    print("Received unrelated event. Ignoring...")
+                    return
+                }
                 print("RECEIVED - \(subscriptionId)\n\(event)")
             }
+            
             SporeSDK.client.subscribe(subscription)
             semaphore.wait()
         }
