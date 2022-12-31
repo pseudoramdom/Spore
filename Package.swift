@@ -18,8 +18,6 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/apple/swift-crypto.git",
-                 exact: .init(stringLiteral: "2.1.0")),
         .package(url: "https://github.com/GigaBitcoin/secp256k1.swift",
                  exact: .init(stringLiteral: "0.8.1")),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.2.0"),
@@ -30,7 +28,6 @@ let package = Package(
         .target(
             name: "Spore",
             dependencies: [
-                .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "secp256k1", package: "secp256k1.swift"),
             ]),
         .testTarget(
