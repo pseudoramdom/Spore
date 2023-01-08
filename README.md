@@ -1,4 +1,4 @@
-# Spore
+# ⁕Spore⁕
 
 A simple Swift implementation of the [Nostr protocol](https://github.com/nostr-protocol/nostr). 
 

@@ -1,6 +1,5 @@
 import Foundation
 import secp256k1
-import secp256k1_implementation
 
 /**
  Describes an event
@@ -145,12 +144,13 @@ extension Event.SignedModel {
         // TODO: Clean this up with the new initializer
         // https://github.com/GigaBitcoin/secp256k1.swift/pull/239/files
         // Also discussed in https://github.com/GigaBitcoin/secp256k1.swift/issues/269
-        let keyParity = true
-        let xOnlyKeyBytes = try publicKey.bytes
-        let yCoord: [UInt8] = keyParity ? [3] : [2]
-        let pubKeyBytes = yCoord + xOnlyKeyBytes
+//        let keyParity = true
+//        let xOnlyKeyBytes = try publicKey.bytes
+//        let yCoord: [UInt8] = keyParity ? [3] : [2]
+//        let pubKeyBytes = yCoord + xOnlyKeyBytes
         
-        let pubKey = try secp256k1.Signing.PublicKey(rawRepresentation: pubKeyBytes, format: .compressed)
+        let xOnlyKey = try secp256k1.Signing.XonlyKey(rawRepresentation: publicKey.bytes, keyParity: 1)
+        let pubKey = secp256k1.Signing.PublicKey(xonlyKey: xOnlyKey)
         
         let schnorrSignature = try secp256k1.Signing.SchnorrSignature(rawRepresentation: signature.bytes)
         
