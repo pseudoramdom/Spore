@@ -21,7 +21,7 @@ extension SporeSDK {
     static let bootstrapRelayURLs = [
         "wss://relay.damus.io",
         "wss://nostr-relay.wlvs.space",
-        "wss://nostr.fmt.wiz.biz",
+        "wss://brb.io",
         "wss://nostr.oxtr.dev",
         "wss://nostr-pub.wellorder.net",
     ]

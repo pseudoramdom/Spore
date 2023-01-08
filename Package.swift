@@ -19,7 +19,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(url: "https://github.com/GigaBitcoin/secp256k1.swift",
-                 exact: .init(stringLiteral: "0.8.1")),
+                 .upToNextMajor(from: "0.10.0")),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.2.0"),
     ],
     targets: [

@@ -9,11 +9,23 @@ extension SporeCLI {
         
         @Option(name: [.customShort("a"), .long],
                 help: "a list of pubkeys or prefixes, the pubkey of an event must be one of these")
-        var authors: [String]
+        var authors: [String] = []
         
         @Option(name: [.customShort("k"), .long],
                 help: "a list of a kind numbers")
-        var kinds: [Int]
+        var kinds: [Int] = []
+        
+        @Option(name: [.customShort("h"), .long],
+                help: "a list of hashtags")
+        var hashtags: [String] = []
+        
+        @Option(name: [.customShort("r"), .long],
+                help: "a list of reference tags")
+        var referenceTags: [String] = []
+        
+        @Option(name: [.customShort("g"), .long],
+                help: "a list of reference tags")
+        var geoTags: [String] = []
         
         @Option(help: "filter since mentioned timestamp")
         var since: TimeInterval?
@@ -26,8 +38,11 @@ extension SporeCLI {
         
         func run() throws {
             let keys = try Keys(privateKey: "aa3b75b54ca8e05db208b11e97b4bc6abd4e432abaf96c6f46c2cda955063d3e")
-            let filter = Filter(authors:authors,
-                                kinds: kinds,
+            let filter = Filter(authors:authors.isEmpty ? nil : authors,
+                                kinds: kinds.isEmpty ? nil : kinds,
+                                hashtags: hashtags.isEmpty ? nil : hashtags,
+                                geoTags: geoTags.isEmpty ? nil : geoTags,
+                                referenceTags: referenceTags.isEmpty ? nil : referenceTags,
                                 since: since,
                                 until: until,
                                 limit: limit)
