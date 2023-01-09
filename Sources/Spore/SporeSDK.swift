@@ -85,7 +85,10 @@ extension SporeSDK {
                 
                 do {
                     let jsonData = Data(event.content.utf8)
-                    let metadata = try JSONDecoder().decode(Metadata.self, from: jsonData)
+                    var metadata = try JSONDecoder().decode(Metadata.self, from: jsonData)
+                    metadata.lastUpdatedAt = event.createdAt
+                    metadata.publicKey = publicKey
+                    
                     continuation.resume(returning: metadata)
                 } catch {
                     continuation.resume(throwing: error)

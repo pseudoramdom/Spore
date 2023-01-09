@@ -7,6 +7,9 @@ public struct Metadata: Codable {
     public let picture: String?
     public let nip05: String?
     
+    public var lastUpdatedAt: Int64?
+    public var publicKey: String?
+    
     private enum CodingKeys: String, CodingKey {
         case name
         case displayName = "display_name"
