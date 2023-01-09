@@ -58,7 +58,7 @@ extension SporeCLI.Profile {
             print("sending...")
             
             let metadata = Metadata(about: "wassa wasaaa")
-            try? SporeSDK.updateProfile(metadata: metadata)
+            try? SporeSDK.updateCurrentUserProfile(metadata: metadata)
             semaphore.wait()
         }
     }
@@ -80,14 +80,21 @@ extension SporeCLI.Profile {
             
             let subId = UUID().uuidString
             print("SubscriptionID - \(subId)")
-            SporeSDK.client.addEventReceiveHandler(for: subId) { subscriptionId, event in
-                guard subscriptionId == subId else {
-                    print("Received unrelated event. Ignoring...")
-                    return
+            Task {
+                do {
+                    let metadata = try await SporeSDK.getUserProfile(publicKey: publicKey, subscriptionId: subId)
+                    print("------")
+                    print("Display Name: \(metadata.displayName ?? "N/A")")
+                    print("Handle: \(metadata.name ?? "N/A")")
+                    print("Bio: \(metadata.about ?? "N/A")")
+                    print("Image: \(metadata.picture ?? "N/A")")
+                    print("NIP05: \(metadata.nip05 ?? "N/A")")
+                    print("------")
+                } catch {
+                    print(error)
                 }
-                print("RECEIVED - \(subscriptionId)\n\(event)")
             }
-            try? SporeSDK.getProfile(publicKey: publicKey, subscriptionId: subId)
+            
             semaphore.wait()
         }
     }

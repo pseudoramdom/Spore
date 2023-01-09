@@ -1,30 +1,30 @@
 import Foundation
 
 public struct Metadata: Codable {
-    let name: String?
-    let displayName: String?
-    let about: String?
-    let picture: String?
-    let website: String?
+    public let name: String?
+    public let displayName: String?
+    public let about: String?
+    public let picture: String?
+    public let nip05: String?
     
     private enum CodingKeys: String, CodingKey {
         case name
         case displayName = "display_name"
         case about
         case picture
-        case website = "nip05"
+        case nip05 = "nip05"
     }
     
     public init(name: String? = nil,
                 displayName: String? = nil,
                 about: String? = nil,
                 picture: String? = nil,
-                website: String? = nil) {
+                nip05: String? = nil) {
         self.name = name
         self.displayName = displayName
         self.about = about
         self.picture = picture
-        self.website = website
+        self.nip05 = nip05
     }
     
     public func encodedString() throws -> String {
@@ -32,4 +32,6 @@ public struct Metadata: Codable {
         encoder.outputFormatting = .withoutEscapingSlashes
         return String(decoding: try encoder.encode(self), as: UTF8.self)
     }
+    
+    
 }

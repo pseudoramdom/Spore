@@ -56,20 +56,43 @@ extension SporeSDK {
 }
 
 extension SporeSDK {
-    public static func updateProfile(metadata: Metadata, for client: SporeClient = client) throws {
+    public static func updateCurrentUserProfile(metadata: Metadata, for client: SporeClient = client) throws {
         let jsonEncodedString = try metadata.encodedString()
         let event = try Event.SignedModel(keys: client.keys, kind: .setMetadata, content: jsonEncodedString)
         client.send(event)
     }
     
-    public static func getProfile(publicKey: String,
-                                  subscriptionId: String = UUID().uuidString,
-                                  for client: SporeClient = client) throws {
+    public static func getCurrentUserProfile(subscriptionId: String = UUID().uuidString,
+                                             for client: SporeClient = client) async throws -> Metadata {
+        return try await getUserProfile(publicKey: client.keys.publicKey)
+    }
+    
+    public static func getUserProfile(publicKey: String,
+                                      subscriptionId: String = UUID().uuidString,
+                                      for client: SporeClient = client) async throws -> Metadata {
         let filter = Filter(authors:[publicKey], kinds: [Event.Kind.setMetadata.rawValue])
         let subscriptionId = subscriptionId
         let subscription = Subscription(id: subscriptionId, filters: [filter])
         
         client.subscribe(subscription)
+        return try await withCheckedThrowingContinuation({ continuation in
+            client.addEventReceiveHandler(for: subscriptionId) { subId, event in
+                guard subId == subscriptionId else {
+                    print("Received unrelated event. Ignoring...")
+                    continuation.resume(throwing: SporeClientError.invalidSubscriptionIdentifier)
+                    return
+                }
+                
+                do {
+                    let jsonData = Data(event.content.utf8)
+                    let metadata = try JSONDecoder().decode(Metadata.self, from: jsonData)
+                    continuation.resume(returning: metadata)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        })
+        
     }
 }
 

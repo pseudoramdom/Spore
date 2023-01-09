@@ -3,6 +3,10 @@ import Foundation
 private typealias EventsSet = Set<Event.SignedModel>
 public typealias SubscriptionEventHandler = (SubscriptionId, Event.SignedModel) -> Void
 
+public enum SporeClientError: Error {
+    case invalidSubscriptionIdentifier
+}
+
 public final class SporeClient {
     public let keys: Keys
     private var subscriptionsAndEvents: [SubscriptionId: EventsSet] = [:]
