@@ -7,9 +7,11 @@ public enum KeysError: Error {
 
 public struct Keys {
     public typealias PrivateKey = secp256k1.Signing.PrivateKey
-    public  typealias PublicKey = secp256k1.Signing.PublicKey
+    public typealias PublicKey = secp256k1.Signing.PublicKey
     public typealias KeySchnorrSigner = secp256k1.Signing.SchnorrSigner
     public typealias KeySchnorrValidator = secp256k1.Signing.SchnorrValidator
+    
+    public typealias PublicKeyHex = String
     
     public let privateKey: PrivateKey
     
@@ -26,7 +28,7 @@ public struct Keys {
         try self.init(privateKey: keyData)
     }
     
-    public var publicKey: String {
+    public var publicKey: PublicKeyHex {
         return Data(privateKey.publicKey.xonly.bytes).hexEncodedString
     }
     

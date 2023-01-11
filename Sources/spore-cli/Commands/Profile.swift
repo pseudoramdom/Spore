@@ -32,14 +32,15 @@ extension SporeCLI.Profile {
             let subId = UUID().uuidString
             print("SubscriptionID - \(subId)")
             
-            SporeSDK.client.addEventReceiveHandler(for: subId) { subscriptionId, event in
-                guard subscriptionId == subId else {
-                    print("Received unrelated event. Ignoring...")
-                    return
+            Task {
+                let contacts = try await SporeSDK.getFollowingContacts(publicKey: publicKey, subscriptionId: subId)
+                print("Contacts list")
+                for contact in contacts {
+                    print("----------------")
+                    print(contact)
                 }
-                print("RECEIVED - \(subscriptionId)\n\(event)")
-            }
-            SporeSDK.getFollowingContacts(publicKey: publicKey, subscriptionId: subId)
+                print("----------------")
+            }            
             semaphore.wait()
         }
     }

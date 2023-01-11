@@ -40,18 +40,36 @@ extension SporeSDK {
 }
 
 extension SporeSDK {
-    public static func getCurrentUserContacts(subscriptionId: String = UUID().uuidString, for client: SporeClient = client) {
-        Self.getFollowingContacts(publicKey: client.keys.publicKey, subscriptionId: subscriptionId)
+    public static func getCurrentUserContacts(subscriptionId: String = UUID().uuidString, for client: SporeClient = client) async throws -> [Keys.PublicKeyHex] {
+        return try await Self.getFollowingContacts(publicKey: client.keys.publicKey, subscriptionId: subscriptionId)
     }
     
     public static func getFollowingContacts(publicKey: String,
                                             subscriptionId: String = UUID().uuidString,
-                                            for client: SporeClient = client) {
+                                            for client: SporeClient = client) async throws -> [Keys.PublicKeyHex] {
         let filter = Filter(authors:[publicKey], kinds: [Event.Kind.contactList.rawValue])
         let subscriptionId = subscriptionId
         let subscription = Subscription(id: subscriptionId, filters: [filter])
-        
         client.subscribe(subscription)
+        return try await withCheckedThrowingContinuation({ continuation in
+            client.addEventReceiveHandler(for: subscriptionId) { subId, event in
+                guard subId == subscriptionId else {
+                    print("Received unrelated event. Ignoring...")
+                    continuation.resume(throwing: SporeClientError.invalidSubscriptionIdentifier)
+                    return
+                }
+                
+                let publicKeyHexList: [Keys.PublicKeyHex] = event.tags.compactMap { tag in
+                    guard tag.type == .publicKey, let tagPublicKeyInfo = tag.info as? Event.Tag.PublicKeyInfo else {
+                        return nil
+                    }
+                    
+                    return tagPublicKeyInfo.publicKeyHexString
+                }
+                
+                continuation.resume(returning: publicKeyHexList)
+            }
+        })
     }
 }
 
