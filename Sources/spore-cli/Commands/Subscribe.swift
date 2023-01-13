@@ -53,20 +53,36 @@ extension SporeCLI {
             let subscription = Subscription(id: UUID().uuidString, filters: [filter])
 
             let semaphore = DispatchSemaphore(value: 0)
-            SporeSDK.initializeClient(with: keys)
-            
+            let client = SporeClient()
+            bootstrapRelays(for: client)
             sleep(2)
             print("sending...")
             
-            SporeSDK.client.addEventReceiveHandler(for: subscription.id) { subscriptionId, event in
-                guard subscriptionId == subscription.id else {
-                    print("Received unrelated event. Ignoring...")
+            client.responseHandler = { response in
+                guard case let .message(_, message) = response else {
                     return
                 }
-                print("RECEIVED - \(subscriptionId)\n\(event)")
+                
+                switch message.type {
+                case .event:
+                    guard let info = message.message as? Message.Relay.EventMessage,
+                          info.subscriptionId == subscription.id else {
+                        break
+                    }
+                    print("RECEIVED - \(info.subscriptionId)\n\(info.event)")
+                case .endOfStoredEvents:
+                    guard let info = message.message as? Message.Relay.EventMessage,
+                          info.subscriptionId == subscription.id else {
+                        break
+                    }
+                    print("EOSE - \(info.subscriptionId)\n")
+                    semaphore.signal()
+                default:
+                    break
+                }
             }
             
-            SporeSDK.client.subscribe(subscription)
+            client.subscribe(subscription)
             semaphore.wait()
         }
     }

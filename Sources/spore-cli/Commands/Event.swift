@@ -4,70 +4,70 @@ import Spore
 
 extension SporeCLI {
     struct Event: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "publish-event", abstract: "subcommand to publish nostr events", subcommands: [TextNote.self])
-    }
-}
-
-extension SporeCLI.Event {
-    struct TextNote: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "text-note",
-                                                        abstract: "Creates a new text note")
+        static var configuration = CommandConfiguration(commandName: "publish-event", abstract: "subcommand to publish nostr events")
         
-        @Argument(help: "Content of the text note")
-        var text: String
+        @Argument(help: "PrivateKey hexstring")
+        var privateKey: String
+        
+        @Argument(help: "Kind")
+        var kind: Int
+        
+        @Argument(help: "Content")
+        var content: String
         
         func run() throws {
-            let keys = try Keys(privateKey: "aa3b75b54ca8e05db208b11e97b4bc6abd4e432abaf96c6f46c2cda955063d3e")
-            try newPost(keys: keys, text: text)
-        }
-        
-        private func newPost(keys: Keys, text: String) throws {
-            let event = try Event.SignedModel(keys: keys, kind: .textNote, content: text)
+            let keys = try Keys(privateKey: privateKey)
+            let kind = Spore.Event.Kind(rawValue: kind)
+            let event = try Spore.Event.SignedModel(keys: keys, kind: kind, content: content)
             print("Created event : \(event)")
             
             let semaphore = DispatchSemaphore(value: 0)
-            let client = SporeClient(keys: keys)
-            
-            let relayUrl = URL(string: "wss://nostr-pub.wellorder.net")!
-            try client.addRelay(url: relayUrl)
-            
-            client.connect()
+            let client = SporeClient()
+            bootstrapRelays(for: client)
             sleep(2)
             print("sending...")
             client.send(event)
+            client.responseHandler = { response in
+                handle(response: response, for: event)
+                semaphore.signal()
+            }
             semaphore.wait()
+        }
+        
+        private func handle(response: SporeResponse, for event: Spore.Event.SignedModel) {
+            guard case let .message(_, message) = response,
+                message.type == .ok,
+               let info = message.message as? Message.Relay.OkMessage,
+               info.eventId == event.id else {
+                return
+            }
+            
+            if info.status {
+                print("Successfully sent event")
+            } else {
+                print("Failed to send event - \(info.message)")
+            }
         }
     }
 }
 
-extension SporeCLI.Event {
-    struct SetMetadata: ParsableCommand {
-        static var configuration = CommandConfiguration(commandName: "set-metadata",
-                                                        abstract: "Creates a new text note")
-        
-        @Argument(help: "Content of the text note")
-        var text: String
-        
-        func run() throws {
-            let keys = try Keys(privateKey: "aa3b75b54ca8e05db208b11e97b4bc6abd4e432abaf96c6f46c2cda955063d3e")
-            try newPost(keys: keys, text: text)
-        }
-        
-        private func newPost(keys: Keys, text: String) throws {
-            let event = try Event.SignedModel(keys: keys, kind: .textNote, content: text)
-            print("Created event : \(event)")
-            
-            let semaphore = DispatchSemaphore(value: 0)
-            let client = SporeClient(keys: keys)
-            
-            let relayUrl = URL(string: "wss://nostr-pub.wellorder.net")!
+func bootstrapRelays(for client: SporeClient) {
+    
+    let bootstrapRelayURLs = [
+        "wss://relay.damus.io",
+        "wss://nostr-relay.wlvs.space",
+        "wss://brb.io",
+        "wss://nostr.oxtr.dev",
+        "wss://nostr-pub.wellorder.net",
+    ]
+    
+    for urlString in bootstrapRelayURLs {
+        let relayUrl = URL(string: urlString)!
+        do {
             try client.addRelay(url: relayUrl)
-            
-            client.connect()
-            sleep(2)
-            print("sending...")
-            client.send(event)
-            semaphore.wait()
+        } catch {
+            print("Failed to add relay with URL - \(relayUrl)")
         }
     }
+    client.connect()
 }

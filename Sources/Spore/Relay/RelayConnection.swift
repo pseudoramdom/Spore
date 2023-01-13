@@ -4,8 +4,8 @@ import Foundation
 public protocol RelayConnectable {
     var url: URL { get }
     
-    /// Describes if the relay socket connection is open
-    var isOpen: Bool { get }
+    /// Describes the status of relay socket connection
+    var status: RelayConnection.Status { get }
     
     /// Set a delegate to receive updates on connection events
     var delegate: RelayConnectionDelegate? { get set }
@@ -25,11 +25,7 @@ public protocol RelayConnectable {
 
 /// Receive delegate calls on any updates from a particular relay connection
 public protocol RelayConnectionDelegate: AnyObject {
-    /// Indicates the relay connection was successful
-    func relayConnectionDidConnect(_ connection: RelayConnection)
-    
-    /// Indicates the relay connection is dead despite attempts to reconnect
-    func relayConnectionDidDisconnect(_ connection: RelayConnection)
+    func relayConnection(_ connection: RelayConnection, didChange status: RelayConnection.Status)
     
     /// Received a message from the relay
     func relayConnection(_ connection: RelayConnection, didReceiveMessage relayMessage: Message.Relay)
@@ -41,7 +37,11 @@ public final class RelayConnection: NSObject, RelayConnectable {
     
     public let url: URL
 
-    public private(set) var isOpen: Bool = false
+    public var status: RelayConnection.Status = .unOpened {
+        didSet {
+            delegate?.relayConnection(self, didChange: status)
+        }
+    }
     
     public weak var delegate: RelayConnectionDelegate?
     
@@ -61,6 +61,7 @@ public final class RelayConnection: NSObject, RelayConnectable {
         socket = session.webSocketTask(with: url)
         listen()
         socket.resume()
+        status = .connecting
     }
     
     public func disconnect() {
@@ -136,6 +137,9 @@ extension RelayConnection {
         socket.sendPing { error in
             if let error = error {
                 print("Failed to ping with error: \(String(describing: error))")
+                if self.status != .notReachable {
+                    self.status = .notReachable
+                }
             }
         }
     }
@@ -143,14 +147,22 @@ extension RelayConnection {
 
 extension RelayConnection: URLSessionWebSocketDelegate {
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
-        isOpen = true
-        delegate?.relayConnectionDidConnect(self)
+        status = .connected
         ping()
     }
     
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
-        isOpen = false
-        delegate?.relayConnectionDidDisconnect(self)
+        status = .disconnected
         pingTimer?.invalidate()
+    }
+}
+
+extension RelayConnection {
+    public enum Status {
+        case unOpened
+        case connecting
+        case connected
+        case notReachable
+        case disconnected
     }
 }

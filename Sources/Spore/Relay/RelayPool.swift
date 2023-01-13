@@ -14,9 +14,7 @@ public protocol RelayPoolManaging {
 }
 
 public protocol RelayPoolMessagingDelegate: AnyObject {
-    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveEvent event: Event.SignedModel, for subscriptionId: SubscriptionId)
-    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveOtherMessage message: Message.Relay)
-    func relayPool(_ relayPool: RelayPool, relayURL: URL?, didReceiveError error: Error)
+    func relayPool(_ relayPool: RelayPool, didReceiveResponse response: SporeResponse)
 }
 
 public final class RelayPool: RelayPoolManaging {
@@ -71,11 +69,11 @@ public final class RelayPool: RelayPoolManaging {
     
     public func send(clientMessage: ClientMessageRepresentable) {
         guard !relays.isEmpty else {
-            delegate?.relayPool(self, relayURL: nil, didReceiveError: RelayPoolError.noRelaysAdded)
+            delegate?.relayPool(self, didReceiveResponse: .relayError(error: RelayPoolError.noRelaysAdded))
             return
         }
         for (_, relay) in relays {
-            guard relay.isOpen else {
+            guard relay.status == .connected else {
                 print("Relay (\(relay.url) is not connected")
                 continue
             }
@@ -95,41 +93,17 @@ extension RelayPool {
 }
 
 extension RelayPool: RelayConnectionDelegate {
-    public func relayConnectionDidConnect(_ connection: RelayConnection) {
-        print("Relay-(\(connection.url) connected")
-    }
-    
-    public func relayConnectionDidDisconnect(_ connection: RelayConnection) {
-        try? removeRelay(url: connection.url)
+    public func relayConnection(_ connection: RelayConnection, didChange status: RelayConnection.Status) {
+        print("Relay-\(connection.url) \(status)")
+        delegate?.relayPool(self, didReceiveResponse: .relayStatus(relay: connection.url, status: status))
     }
     
     public func relayConnection(_ connection: RelayConnection, didReceiveMessage relayMessage: Message.Relay) {
-        print("RelayPool.relayConnectionDidReceiveMessage")
-        
-        switch relayMessage.type {
-        case .event:
-            guard let eventMessage = relayMessage.message as? Message.Relay.EventMessage else {
-                print("There was an error decoding the message. Mismatch between type and message")
-                return
-            }
-            
-            // TODO: Reenable after fixing event validity check
-//            guard let isValid = try? eventMessage.event.isValid(), isValid else {
-//                print("Event is not valid. Bailing")
-//                return
-//            }
-            
-            delegate?.relayPool(self, relayURL: nil, didReceiveEvent: eventMessage.event, for: eventMessage.subscriptionId)
-            
-        case .notice, .endOfStoredEvents, .ok:
-            delegate?.relayPool(self, relayURL: connection.url, didReceiveOtherMessage: relayMessage)
-        case .unknown:
-            print("Relay message received of unknown type")
-        }
+        delegate?.relayPool(self, didReceiveResponse: .message(relay: connection.url, message: relayMessage))
     }
     
     public func relayConnection(_ connection: RelayConnection, didReceiveError error: Error) {
         print("Relay-(\(connection.url) : ERROR - \(error.localizedDescription)")
-        delegate?.relayPool(self, relayURL: connection.url, didReceiveError: error)
+        delegate?.relayPool(self, didReceiveResponse: .relayError(error: error))
     }    
 }

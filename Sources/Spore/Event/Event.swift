@@ -32,25 +32,25 @@ extension Event {
     public struct SignedModel: Codable {
         
         /// 32-bytes sha256 of the the serialized event data
-        let id: String
+        public let id: String
         
         /// 32-bytes hex-encoded public key of the event creator
-        let publicKey: String
+        public let publicKey: String
         
         /// unix timestamp in seconds
-        let createdAt: Int64
+        public let createdAt: Int64
         
         /// Event kind
-        let kind: Event.Kind
+        public let kind: Event.Kind
         
         /// Event tags
-        let tags: [Event.Tag]
+        public let tags: [Event.Tag]
         
         /// Any arbitrary string
-        let content: String
+        public let content: String
         
         /// 64-bytes signature of the sha256 hash of the serialized event data, which is the same as the "id" field
-        let signature: String
+        public let signature: String
         
         enum CodingKeys: String, CodingKey {
             case id
