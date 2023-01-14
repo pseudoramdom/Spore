@@ -1,10 +1,3 @@
-//
-//  RelayConnectionTests.swift
-//  
-//
-//  Created by Ramsundar Shandilya on 12/24/22.
-//
-
 import XCTest
 
 final class RelayConnectionTests: XCTestCase {

@@ -1,10 +1,3 @@
-//
-//  EventsTest.swift
-//  
-//
-//  Created by Ramsundar Shandilya on 12/18/22.
-//
-
 import XCTest
 @testable import Spore
 

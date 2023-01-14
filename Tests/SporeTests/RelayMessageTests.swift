@@ -1,10 +1,3 @@
-//
-//  MessagesTests.swift
-//  
-//
-//  Created by Ramsundar Shandilya on 12/19/22.
-//
-
 import XCTest
 @testable import Spore
 

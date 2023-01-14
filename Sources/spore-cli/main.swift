@@ -1,10 +1,3 @@
-//
-//  File.swift
-//  
-//
-//  Created by Ramsundar Shandilya on 12/20/22.
-//
-
 import ArgumentParser
 
 struct SporeCLI: ParsableCommand {
