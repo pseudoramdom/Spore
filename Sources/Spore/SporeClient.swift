@@ -2,8 +2,9 @@ import Foundation
 
 public typealias SporeResponseHandler = (SporeResponse) -> Void
 
-public final class SporeClient {
+public final class SporeClient: ObservableObject {
     public var responseHandler: SporeResponseHandler?
+    @Published var latestResponse: SporeResponse?
     
     public init() {}
     
@@ -55,5 +56,6 @@ extension SporeClient: RelayPoolMessagingDelegate {
     
     public func relayPool(_ relayPool: RelayPool, didReceiveResponse response: SporeResponse) {
         responseHandler?(response)
+        latestResponse = response
     }
 }
