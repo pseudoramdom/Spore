@@ -14,6 +14,10 @@ public final class SporeClient: ObservableObject {
         return pool
     }()
     
+    public func generateKeys() throws -> Keys {
+        return try Keys()
+    }
+    
     public func addRelay(url: URL) throws {
         let relayConnection = RelayConnection(url: url)
         try relayPool.addRelay(relayConnection)
