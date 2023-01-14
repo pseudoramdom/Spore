@@ -55,11 +55,12 @@ extension SporeCLI {
             let semaphore = DispatchSemaphore(value: 0)
             let client = SporeClient()
             bootstrapRelays(for: client)
-            sleep(2)
+            print("waiting for 5sec")
+            sleep(5)
             print("sending...")
             
             client.responseHandler = { response in
-                guard case let .message(_, message) = response else {
+                guard case let .message(relay, message) = response else {
                     return
                 }
                 
@@ -69,13 +70,17 @@ extension SporeCLI {
                           info.subscriptionId == subscription.id else {
                         break
                     }
-                    print("RECEIVED - \(info.subscriptionId)\n\(info.event)")
+                    print("-------------------")
+                    print("Relay - \(relay)")
+                    print("SubscriptionId - \(info.subscriptionId)")
+                    print("\(info.event)")
+                    print("-------------------")
                 case .endOfStoredEvents:
                     guard let info = message.message as? Message.Relay.EventMessage,
                           info.subscriptionId == subscription.id else {
                         break
                     }
-                    print("EOSE - \(info.subscriptionId)\n")
+                    print("EOSE - from \(relay)\n")
                     semaphore.signal()
                 default:
                     break

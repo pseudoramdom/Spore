@@ -103,6 +103,8 @@ extension RelayConnection {
             case .failure(let error):
                 print("ERROR: Received websocket error - \(String(describing: error))")
                 self.delegate?.relayConnection(self, didReceiveError: error)
+                self.disconnect()
+                self.connect()
             case .success(let responseMessage):
                 switch responseMessage {
                 case .string(let text):
