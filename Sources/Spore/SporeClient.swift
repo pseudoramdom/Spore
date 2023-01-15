@@ -2,9 +2,9 @@ import Foundation
 
 public typealias SporeResponseHandler = (SporeResponse) -> Void
 
-public final class SporeClient: ObservableObject {
+public final class SporeClient {
     public var responseHandler: SporeResponseHandler?
-    @Published var latestResponse: SporeResponse?
+    public var latestResponse: SporeResponse?
     
     public init() {}
     
@@ -53,6 +53,11 @@ public final class SporeClient: ObservableObject {
     public func unsubscribe(_ subscriptionId: SubscriptionId) {
         let unsubscribeMessage = Message.Client.UnsubscribeMessage(subscriptionId: subscriptionId)
         relayPool.send(clientMessage: unsubscribeMessage)
+    }
+    
+    public func validateDNSIdentifier(_ dnsIdentifier: DNSIdentifier) async throws -> DNSIdentifiedUser {
+        let validator = DNSIdentifierValidator(dnsIdentifier: dnsIdentifier)
+        return try await validator.validate()
     }
  }
 

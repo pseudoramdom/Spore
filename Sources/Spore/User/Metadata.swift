@@ -5,7 +5,9 @@ public struct Metadata: Codable {
     public let displayName: String?
     public let about: String?
     public let picture: String?
-    public let nip05: String?
+    
+    /// NIP-05 identifier
+    public let dnsIdentifier: DNSIdentifier?
     
     public var lastUpdatedAt: Int64?
     public var publicKey: String?
@@ -15,19 +17,19 @@ public struct Metadata: Codable {
         case displayName = "display_name"
         case about
         case picture
-        case nip05 = "nip05"
+        case dnsIdentifier = "nip05"
     }
     
     public init(name: String? = nil,
                 displayName: String? = nil,
                 about: String? = nil,
                 picture: String? = nil,
-                nip05: String? = nil) {
+                dnsIdentifier: DNSIdentifier? = nil) {
         self.name = name
         self.displayName = displayName
         self.about = about
         self.picture = picture
-        self.nip05 = nip05
+        self.dnsIdentifier = dnsIdentifier
     }
     
     public func encodedString() throws -> String {

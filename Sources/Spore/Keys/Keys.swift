@@ -5,13 +5,13 @@ public enum KeysError: Error {
     case invalidHexString
 }
 
+public typealias PublicKeyHex = String
+
 public struct Keys {
     public typealias PrivateKey = secp256k1.Signing.PrivateKey
     public typealias PublicKey = secp256k1.Signing.PublicKey
     public typealias KeySchnorrSigner = secp256k1.Signing.SchnorrSigner
     public typealias KeySchnorrValidator = secp256k1.Signing.SchnorrValidator
-    
-    public typealias PublicKeyHex = String
     
     public let privateKey: PrivateKey
     
