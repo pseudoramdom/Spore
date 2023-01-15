@@ -6,7 +6,6 @@ public protocol RelayPoolManaging {
     func addRelay(_ relay: RelayConnectable) throws
     func removeRelay(url: URL) throws
     
-    func connect()
     func disconnect()
     
     /// Send message to relays
@@ -35,6 +34,7 @@ public final class RelayPool: RelayPoolManaging {
         }
         
         relay.delegate = self
+        relay.connect()
         
         return lockQueue.sync { [unowned self] in
             self.relays[url.absoluteString] = relay
@@ -52,12 +52,6 @@ public final class RelayPool: RelayPoolManaging {
         
         return lockQueue.sync { [unowned self] in
             self.relays.removeValue(forKey: url.absoluteString)
-        }
-    }
-    
-    public func connect() {
-        for (_, relay) in relays {
-            relay.connect()
         }
     }
     
