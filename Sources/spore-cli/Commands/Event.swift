@@ -69,5 +69,4 @@ func bootstrapRelays(for client: SporeClient) {
             print("Failed to add relay with URL - \(relayUrl)")
         }
     }
-    client.connect()
 }

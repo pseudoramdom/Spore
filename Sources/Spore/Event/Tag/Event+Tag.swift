@@ -3,8 +3,8 @@ import Foundation
 public protocol EventTagInfoRepresentable: Codable {}
 public extension Event {
     struct Tag: Codable {
-        let type: TagType
-        let info: EventTagInfoRepresentable
+        public let type: TagType
+        public let info: EventTagInfoRepresentable
     }
 }
 
@@ -45,7 +45,7 @@ public extension Event.Tag {
 public extension Event.Tag {
     
     struct GenericInfo: EventTagInfoRepresentable {
-        let info: [String]
+        public let info: [String]
         
         public init(from container: UnkeyedDecodingContainer) throws {
             var container = container
@@ -60,8 +60,8 @@ public extension Event.Tag {
     }
     
     struct EventInfo: EventTagInfoRepresentable {
-        let eventId: String
-        let recommendedRelayURL: String?
+        public let eventId: String
+        public let recommendedRelayURL: String?
         
         public init(from container: UnkeyedDecodingContainer) throws {
             var container = container
@@ -79,8 +79,8 @@ public extension Event.Tag {
     }
     
     struct PublicKeyInfo: EventTagInfoRepresentable {
-        let publicKeyHexString: String
-        let recommendedRelayURL: String?
+        public let publicKeyHexString: String
+        public let recommendedRelayURL: String?
         
         public init(from container: UnkeyedDecodingContainer) throws {
             var container = container
@@ -98,8 +98,8 @@ public extension Event.Tag {
     }
     
     struct NonceInfo: EventTagInfoRepresentable {
-        let desiredLeadingZeroes: String
-        let targetDifficulty: String
+        public let desiredLeadingZeroes: String
+        public let targetDifficulty: String
         
         public init(from container: UnkeyedDecodingContainer) throws {
             var container = container
@@ -116,13 +116,13 @@ public extension Event.Tag {
     
     struct DelegationInfo: EventTagInfoRepresentable {
         /// pubkey of the delegator
-        let publicKey: String
+        public let publicKey: String
         
         /// conditions query string
-        let conditionsQuery: String
+        public let conditionsQuery: String
         
         /// 64-bytes schnorr signature of the sha256 hash of the delegation token
-        let signature: String
+        public let signature: String
         
         public init(from container: UnkeyedDecodingContainer) throws {
             var container = container

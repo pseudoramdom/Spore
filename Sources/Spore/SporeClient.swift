@@ -25,10 +25,6 @@ public final class SporeClient {
     
     public func removeRelay(url: URL) throws {
         try relayPool.removeRelay(url: url)
-    }    
-    
-    public func connect() {
-        relayPool.connect()
     }
     
     public func disconnect() {
