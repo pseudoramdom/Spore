@@ -7,57 +7,88 @@ import secp256k1
 /// Ref - [BIP-173](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki)
 public struct Bech32Coder {
     
-    /// human-readable part
-    public typealias HRPPrefix = String
-    
-    enum Prefix {
-        public static let privateKey: HRPPrefix = "nsec"
-        public static let publicKey: HRPPrefix = "npub"
-        public static let note: HRPPrefix = "note"
-        public static let profile: HRPPrefix = "nprofile"
-        public static let event: HRPPrefix = "nevent"
-        public static let relay: HRPPrefix = "nrelay"
+    enum HumanReadablePart {
+        public static let privateKey = "nsec"
+        public static let publicKey = "npub"
+        public static let note = "note"
+        public static let profile = "nprofile"
+        public static let event = "nevent"
+        public static let relay = "nrelay"
     }
+    
+    private let characterSet: [Character] = Array("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
+    private let generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
     
     public init() {}
     
-    public func encode(hrp: HRPPrefix, _ string: String) throws -> String {
+    public func encode(humanReadablePart: String, _ string: String) throws -> String {
         let input = try string.bytes
-        let table: [Character] = Array("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
         let bits = eightToFiveBits(input)
-        let check_sum = checksum(hrp: hrp, data: bits)
+        let checksum = createChecksum(humanReadablePart: humanReadablePart, data: bits)
         let separator = "1"
-        return "\(hrp)" + separator + String((bits + check_sum).map { table[Int($0)] })
+        return "\(humanReadablePart)" + separator + String((bits + checksum).map { characterSet[Int($0)] })
     }
     
-    public func decode(bech32String: String) throws -> (hrp: HRPPrefix, string: String) {
-        let bytes = try bech32String.bytes
-        
-        guard !(bytes.contains() { $0 < 33 || $0 > 126 }) else { throw Bech32DecodeError.invalidCharacter }
-        
-        // Decoders MUST NOT accept strings where some characters are uppercase and some are lowercase (such strings are referred to as mixed case strings)
-        let hasLowercase = bytes.contains() { $0 >= 97 && $0 <= 122 }
-        let hasUppercase = bytes.contains() { $0 >= 65 && $0 <= 90 }
-          
-        if hasLowercase && hasUppercase { throw Bech32DecodeError.caseMixing }
+    public func decode(bech32String: String) throws -> (humanReadablePart: String, data: Data) {
+        try validateCharacters(bech32String)
         
         let bech32String = bech32String.lowercased()
         
-        guard let separatorPosition = bech32String.lastIndex(of: "1") else { throw Bech32DecodeError.missingSeparator }
+        guard let separatorPosition = bech32String.lastIndex(of: "1")?.utf16Offset(in: bech32String) else { throw Bech32DecodeError.missingSeparator }
         
-        if separatorPosition < 1 || bech32String.characters.count > 90 {
+        if separatorPosition < 1 || separatorPosition + 7 > bech32String.count || bech32String.count > 90 {
             throw Bech32DecodeError.missingSeparator
           }
         
-        let hrpSubString = bech32String.substring(to: bech32String.index(bech32String.startIndex, offsetBy: separatorPosition))
-    }
-    
-    public func bech32_verify_checksum(hrp: String, data: [UInt8]) -> Bool {
-        bech32_polymod(bech32_hrp_expand(hrp) + data) == 1
+        let humanReadablePart = String(bech32String.prefix(separatorPosition))
+        let dataPart = bech32String.suffix(bech32String.count - humanReadablePart.count - 1)
+
+        var data = Data()
+        for character in dataPart {
+            guard let distance = characterSet.firstIndex(of: character) else {
+                throw Bech32DecodeError.invalidCharacter
+            }
+            data.append(UInt8(distance))
+        }
+        
+        let byteArray = data.map { $0 }
+        if !verifyChecksum(humanReadablePart: humanReadablePart, data: byteArray) {
+            throw Bech32DecodeError.invalidChecksum
+        }
+
+        let outputData = Data(data[..<(data.count - 6)])
+        guard let convertedData = convertBits(outbits: 8, input: outputData, inbits: 6, pad: 0) else {
+            throw Bech32DecodeError.decodeFailed
+        }
+        return (humanReadablePart, convertedData)
     }
 }
 
 extension Bech32Coder {
+    private func validateCharacters(_ bechString: String) throws {
+        guard let stringBytes = bechString.data(using: .utf8) else {
+            throw Bech32DecodeError.invalidInputString
+        }
+        
+        var hasLower = false
+        var hasUpper = false
+        
+        for character in stringBytes {
+            let code = UInt32(character)
+            if code < 33 || code > 126 {
+                throw Bech32DecodeError.invalidCharacter
+            } else if code >= 97 && code <= 122 {
+                hasLower = true
+            } else if code >= 65 && code <= 90 {
+                hasUpper = true
+            }
+        }
+        
+        guard !(hasLower && hasUpper) else {
+            throw Bech32DecodeError.caseMixing
+        }
+    }
+    
     private func eightToFiveBits(_ input: [UInt8]) -> [UInt8] {
         guard !input.isEmpty else { return [] }
         
@@ -82,9 +113,9 @@ extension Bech32Coder {
         return outputArray
     }
     
-    private func checksum(hrp: HRPPrefix, data: [UInt8]) -> [UInt8] {
-        let values = bech32_hrp_expand(hrp) + data
-        let polymod = bech32_polymod(values + [0,0,0,0,0,0]) ^ 1
+    private func createChecksum(humanReadablePart: String, data: [UInt8]) -> [UInt8] {
+        let values = expandHumanReadablePart(humanReadablePart) + data
+        let polymod = polymod(values + [0,0,0,0,0,0]) ^ 1
         var result: [UInt] = []
         for i in (0..<6) {
             result.append((polymod >> (5 * (5 - UInt(i)))) & 31)
@@ -92,7 +123,7 @@ extension Bech32Coder {
         return result.map { UInt8($0) }
     }
     
-    private func bech32_hrp_expand(_ s: String) -> [UInt8] {
+    private func expandHumanReadablePart(_ s: String) -> [UInt8] {
         var left: [UInt8] = []
         var right: [UInt8] = []
         for x in Array(s) {
@@ -103,7 +134,7 @@ extension Bech32Coder {
         return left + [0] + right
     }
     
-    private func bech32_polymod(_ values: [UInt8]) -> UInt {
+    private func polymod(_ values: [UInt8]) -> UInt {
         let GEN: [UInt] = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
         var chk: UInt = 1
         for v in values {
@@ -117,10 +148,43 @@ extension Bech32Coder {
         }
         return chk
     }
+    
+    private func verifyChecksum(humanReadablePart: String, data: [UInt8]) -> Bool {
+        return polymod(expandHumanReadablePart(humanReadablePart) + data) == 1
+    }
+    
+    func convertBits(outbits: Int, input: Data, inbits: Int, pad: Int) -> Data? {
+        let maxv: UInt32 = ((UInt32(1)) << outbits) - 1;
+        var val: UInt32 = 0
+        var bits: Int = 0
+        var out = Data()
+        
+        for i in (0..<input.count) {
+            val = (val << inbits) | UInt32(input[i])
+            bits += inbits;
+            while bits >= outbits {
+                bits -= outbits;
+                out.append(UInt8((val >> bits) & maxv))
+            }
+        }
+        
+        if pad != 0 {
+            if bits != 0 {
+                out.append(UInt8(val << (outbits - bits) & maxv))
+            }
+        } else if 0 != ((val << (outbits - bits)) & maxv) || bits >= inbits {
+            return nil
+        }
+        
+        return out
+    }
 }
 
 public enum Bech32DecodeError: Error {
     case invalidCharacter
     case missingSeparator
     case caseMixing
+    case invalidChecksum
+    case invalidInputString
+    case decodeFailed
 }
