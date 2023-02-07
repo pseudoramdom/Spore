@@ -7,7 +7,7 @@ import secp256k1
 /// Ref - [BIP-173](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki)
 public struct Bech32Coder {
     
-    enum HumanReadablePart {
+    public enum HumanReadablePart {
         public static let privateKey = "nsec"
         public static let publicKey = "npub"
         public static let note = "note"

@@ -1,17 +1,17 @@
 import Foundation
 
 public extension Data {
-    var hexEncodedString: String {
+    public var hexEncodedString: String {
         return map { String(format: "%02hhx", $0) }.joined()
     }
     
     
-    enum DecodingError: Error {
+    public enum DecodingError: Error {
         case oddNumberOfCharacters
         case invalidHexCharacters([Character])
     }
     
-    init(hexString: String) throws {
+    public init(hexString: String) throws {
         let string: String
         if hexString.hasPrefix("0x") {
             string = String(hexString.dropFirst(2))

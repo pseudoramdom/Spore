@@ -5,6 +5,7 @@ struct SporeCLI: ParsableCommand {
                                                     abstract: "CLI tool to test NostrSwift implementation",
                                                     subcommands: [Event.self,
                                                                   Subscribe.self,
+                                                                  KeyGen.self
 //                                                                  Profile.self
                                                                  ])
 }
