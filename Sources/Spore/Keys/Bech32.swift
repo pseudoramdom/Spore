@@ -57,7 +57,7 @@ public struct Bech32Coder {
         }
 
         let outputData = Data(data[..<(data.count - 6)])
-        guard let convertedData = convertBits(outbits: 8, input: outputData, inbits: 6, pad: 0) else {
+        guard let convertedData = convertBits(outbits: 8, input: outputData, inbits: 5, pad: 0) else {
             throw Bech32DecodeError.decodeFailed
         }
         return (humanReadablePart, convertedData)
