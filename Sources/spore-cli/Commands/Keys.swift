@@ -33,14 +33,15 @@ extension SporeCLI {
             while !shouldStop {
                 queue.async(group: group, execute: {
                     let keys = try! Keys()
-                    let bech32PrivateKey = try! Bech32Coder().encode(humanReadablePart: Bech32Coder.HumanReadablePart.publicKey, keys.privateKey.rawRepresentation.hexEncodedString)
+                    let bech32PrivateKey = try! Bech32Coder().encode(humanReadablePart: Bech32Coder.HumanReadablePart.privateKey, keys.privateKey.rawRepresentation.hexEncodedString)
                     let bech32PublicKey = try! Bech32Coder().encode(humanReadablePart: Bech32Coder.HumanReadablePart.publicKey, keys.publicKey)
                     
                     let dataPart = bech32PublicKey.suffix(bech32PublicKey.count - Bech32Coder.HumanReadablePart.publicKey.count - 1)
                     
                     if dataPart.hasPrefix(prefix) {
-                        print("Bech32 Public Key - \(bech32PrivateKey)")
+                        print("Bech32 Private Key - \(bech32PrivateKey)")
                         print("Bech32 Public Key - \(bech32PublicKey)")
+                        print("====================================================")
                         shouldStop = true
                     } else {
 //                        print("discarding - \(bech32String)")
